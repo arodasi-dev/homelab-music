@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Música</title>
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121413" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Música">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <audio id="audio" preload="metadata"></audio>
+
+  <main>
+    <section id="view-player" class="view">
+      <div id="player-empty" class="empty">
+        <h2>Nada tocando</h2>
+        <p>Escolha uma música na biblioteca.</p>
+        <button class="btn" data-go="library">Abrir biblioteca</button>
+      </div>
+
+      <div id="player-body" hidden>
+        <div class="player-top">
+          <span class="muted">Tocando agora</span>
+          <button id="toggle-queue" class="icon-btn" aria-label="Fila"></button>
+        </div>
+        <div id="cover" class="cover"><img id="cover-img" alt=""></div>
+        <div class="now">
+          <strong id="now-title"></strong>
+          <span id="now-channel" class="muted"></span>
+        </div>
+        <div class="seek">
+          <input id="seek" type="range" min="0" max="0" step="1" value="0" aria-label="Posição">
+          <div class="times muted"><span id="time-now">0:00</span><span id="time-total">0:00</span></div>
+        </div>
+        <div class="controls">
+          <button id="btn-shuffle" class="icon-btn" aria-label="Aleatório"></button>
+          <button id="btn-prev" class="icon-btn" aria-label="Anterior"></button>
+          <button id="btn-play" class="play-btn" aria-label="Tocar"></button>
+          <button id="btn-next" class="icon-btn" aria-label="Próxima"></button>
+          <button id="btn-repeat" class="icon-btn" aria-label="Repetir"></button>
+        </div>
+        <ul id="queue" class="list queue" hidden></ul>
+      </div>
+    </section>
+
+    <section id="view-library" class="view" hidden>
+      <header>
+        <h1>Biblioteca</h1>
+        <button id="open-settings" class="icon-btn" aria-label="Configurações"></button>
+      </header>
+      <p id="conn" class="notice" hidden></p>
+      <ul id="library" class="list"></ul>
+      <div id="library-empty" class="empty" hidden>
+        <h2>Comece sua biblioteca</h2>
+        <p>Cole um link do YouTube pra ouvir como música.</p>
+        <button class="btn" data-go="add">Adicionar música</button>
+      </div>
+    </section>
+
+    <section id="view-add" class="view" hidden>
+      <header><h1>Adicionar</h1></header>
+      <form id="add-form">
+        <div class="field">
+          <input id="add-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://youtu.be/…" aria-label="Link do YouTube">
+          <button type="button" id="paste" class="ghost">Colar</button>
+        </div>
+        <p id="add-msg" class="notice" hidden></p>
+        <button id="add-submit" class="btn primary" type="submit">Adicionar à biblioteca</button>
+      </form>
+      <h2 class="section">Baixando</h2>
+      <ul id="downloading" class="list"></ul>
+      <p id="downloading-empty" class="muted pad">Nenhum download em andamento.</p>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-view="player" class="on"></button>
+    <button data-view="library"></button>
+    <button data-view="add"></button>
+  </nav>
+
+  <dialog id="settings">
+    <form method="dialog" id="settings-form">
+      <h2>Configurações</h2>
+      <label>Endereço do servidor
+        <input id="set-url" type="url" placeholder="https://homelab.tailnet.ts.net:8444" autocomplete="off" autocapitalize="off">
+      </label>
+      <label>Token
+        <input id="set-token" type="password" autocomplete="off">
+      </label>
+      <p class="muted">Ficam só neste aparelho. O Tailscale precisa estar conectado.</p>
+      <p id="settings-msg" class="notice" hidden></p>
+      <div class="actions">
+        <button type="button" id="settings-cancel" class="ghost">Cancelar</button>
+        <button type="submit" class="btn primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
