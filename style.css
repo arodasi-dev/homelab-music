@@ -73,6 +73,8 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .row.playing .row-title { color: var(--accent-text); }
 .row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; padding: 2px 0; }
 .thumb { width: 44px; height: 44px; border-radius: 8px; background: var(--thumb); flex: none; object-fit: cover; }
+.thumb.wide { width: 80px; height: 45px; }
+#results { margin-top: 12px; }
 .row-text { min-width: 0; display: flex; flex-direction: column; }
 .row-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

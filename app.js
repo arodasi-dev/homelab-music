@@ -1,6 +1,6 @@
 const POLL_MS = 3000;
-const SKIP_S = 10;
 const RESTART_AFTER_S = 3;
+const LINK = /^https?:\/\//i;
 
 const ICONS = {
   play: '<path d="M7 4v16l13-8z" fill="currentColor" stroke="none"/>',
@@ -12,6 +12,7 @@ const ICONS = {
   queue: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   library: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   add: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="M5 13l4 4L19 7"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
   retry: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
   settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
@@ -24,7 +25,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* modo privado: pede de novo */ } },
 };
 
-const state = { tracks: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
+const state = { tracks: [], results: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
 let baseUrl = store.get("agentUrl");
 let token = store.get("token");
 let pollTimer = null;
@@ -143,9 +144,10 @@ function setupMediaSession() {
     pause: () => audio.pause(),
     previoustrack: previous,
     nexttrack: () => step(1, false),
-    seekbackward: () => { audio.currentTime = Math.max(0, audio.currentTime - SKIP_S); },
-    seekforward: () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + SKIP_S); },
     seekto: (d) => { audio.currentTime = d.seekTime; },
+    // Sem esses dois, o iOS mostra "próxima/anterior" na tela de bloqueio em vez de "pular 10 s".
+    seekbackward: null,
+    seekforward: null,
   };
   for (const [action, handler] of Object.entries(handlers)) {
     try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* ação sem suporte neste navegador */ }
@@ -243,10 +245,32 @@ function renderDownloading() {
   $("downloading-empty").hidden = pending.length > 0;
 }
 
+function renderResults() {
+  const inLibrary = (id) => state.tracks.some((t) => t.id === id && t.status !== "error");
+  $("results").replaceChildren(...state.results.map((r) => {
+    const row = el("li", "row");
+    const main = el("div", "row-main");
+    const thumb = el("img", "thumb wide");
+    thumb.alt = "";
+    thumb.loading = "lazy";
+    thumb.src = r.thumbnail;
+    const text = el("div", "row-text");
+    const sub = r.duration ? `${r.channel} · ${formatTime(r.duration)}` : r.channel;
+    text.append(el("span", "row-title", r.title), el("span", "row-sub", sub));
+    main.append(thumb, text);
+    row.append(main);
+    row.append(inLibrary(r.id)
+      ? Object.assign(el("span", "icon-btn on"), { innerHTML: icon("check") })
+      : rowButton("add", "Adicionar à biblioteca", () => addUrl(`https://www.youtube.com/watch?v=${r.id}`)));
+    return row;
+  }));
+}
+
 function renderAll() {
   renderPlayer();
   renderLibrary();
   renderDownloading();
+  renderResults();
 }
 
 // ---- ações ----
@@ -276,16 +300,42 @@ function setAddMessage(text, isError) {
 
 async function addUrl(url) {
   setAddMessage("");
-  $("add-submit").textContent = "Adicionando…";
   try {
     const track = await api("/tracks", { method: "POST", body: JSON.stringify({ url }) });
-    $("add-url").value = "";
     setAddMessage(track.status === "ready" ? "Essa música já está na biblioteca." : "Baixando em segundo plano. Ela aparece na biblioteca quando terminar.", false);
     await loadTracks();
+    return true;
   } catch (err) {
     setAddMessage(err.message, true);
-  } finally {
-    $("add-submit").textContent = "Adicionar à biblioteca";
+    return false;
+  }
+}
+
+async function search(query) {
+  setAddMessage("Buscando…", false);
+  try {
+    state.results = await api(`/search?q=${encodeURIComponent(query)}`);
+    setAddMessage(state.results.length ? "" : "Nenhum resultado.", false);
+  } catch (err) {
+    state.results = [];
+    setAddMessage(err.message, true);
+  }
+  renderResults();
+}
+
+function updateSubmitLabel() {
+  $("add-submit").textContent = LINK.test($("add-url").value.trim()) ? "Adicionar à biblioteca" : "Buscar";
+}
+
+async function submitAdd() {
+  const value = $("add-url").value.trim();
+  if (!value) { setAddMessage("Digite o que buscar ou cole um link.", true); return; }
+  if (!LINK.test(value)) { await search(value); return; }
+  state.results = [];
+  renderResults();
+  if (await addUrl(value)) {
+    $("add-url").value = "";
+    updateSubmitLabel();
   }
 }
 
@@ -339,14 +389,13 @@ function init() {
   audio.addEventListener("ended", () => step(1, true));
   setupMediaSession();
 
-  $("add-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const url = $("add-url").value.trim();
-    if (!url) { setAddMessage("Cole um link do YouTube.", true); return; }
-    addUrl(url);
-  });
+  $("add-form").addEventListener("submit", (e) => { e.preventDefault(); submitAdd(); });
+  $("add-url").addEventListener("input", updateSubmitLabel);
   $("paste").addEventListener("click", async () => {
-    try { $("add-url").value = await navigator.clipboard.readText(); } catch { setAddMessage("Não consegui ler a área de transferência. Cole no campo.", true); }
+    try {
+      $("add-url").value = await navigator.clipboard.readText();
+      updateSubmitLabel();
+    } catch { setAddMessage("Não consegui ler a área de transferência. Cole no campo.", true); }
   });
 
   $("open-settings").addEventListener("click", () => openSettings(false));

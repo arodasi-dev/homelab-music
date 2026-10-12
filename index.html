@@ -69,12 +69,13 @@
       <header><h1>Adicionar</h1></header>
       <form id="add-form">
         <div class="field">
-          <input id="add-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://youtu.be/…" aria-label="Link do YouTube">
+          <input id="add-url" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" placeholder="Buscar ou colar link do YouTube" aria-label="Buscar ou colar link do YouTube">
           <button type="button" id="paste" class="ghost">Colar</button>
         </div>
         <p id="add-msg" class="notice" hidden></p>
-        <button id="add-submit" class="btn primary" type="submit">Adicionar à biblioteca</button>
+        <button id="add-submit" class="btn primary" type="submit">Buscar</button>
       </form>
+      <ul id="results" class="list"></ul>
       <h2 class="section">Baixando</h2>
       <ul id="downloading" class="list"></ul>
       <p id="downloading-empty" class="muted pad">Nenhum download em andamento.</p>
