@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.2";
+const APP_VERSION = "2026-10-12.3";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -17,6 +17,7 @@ const ICONS = {
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
   retry: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
   settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  note: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -26,7 +27,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* modo privado: pede de novo */ } },
 };
 
-const state = { tracks: [], results: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
+const state = { showCover: store.get("showCover") !== "0", tracks: [], results: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
 let baseUrl = store.get("agentUrl");
 let token = store.get("token");
 let pollTimer = null;
@@ -127,7 +128,9 @@ function updateMediaSession(track) {
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title,
     artist: track.channel,
-    artwork: [{ src: mediaUrl(track.id, "thumb"), sizes: "480x360", type: "image/jpeg" }],
+    artwork: state.showCover
+      ? [{ src: mediaUrl(track.id, "thumb"), sizes: "480x360", type: "image/jpeg" }]
+      : [{ src: new URL("icons/icon-512.png", location.href).href, sizes: "512x512", type: "image/png" }],
   });
   // O iOS monta os botões da tela de bloqueio quando a sessão de mídia fica ativa, então registra de novo aqui.
   setupMediaSession();
@@ -167,6 +170,19 @@ function renderSeek() {
   $("time-total").textContent = formatTime(duration);
 }
 
+function renderCover(track) {
+  const img = $("cover-img");
+  if (state.showCover && img.dataset.id !== track.id) {
+    img.dataset.id = track.id;
+    img.dataset.failed = "";
+    img.onerror = () => { img.dataset.failed = "1"; renderCover(track); };
+    img.src = mediaUrl(track.id, "thumb");
+  }
+  const showImage = state.showCover && !img.dataset.failed;
+  img.hidden = !showImage;
+  $("cover-note").hidden = showImage;
+}
+
 function renderPlayer() {
   const track = byId(state.current);
   $("player-empty").hidden = !!track;
@@ -174,13 +190,7 @@ function renderPlayer() {
   if (!track) return;
   $("now-title").textContent = track.title;
   $("now-channel").textContent = track.channel;
-  const cover = $("cover-img");
-  if (cover.dataset.id !== track.id) {
-    cover.dataset.id = track.id;
-    cover.hidden = false;
-    cover.onerror = () => { cover.hidden = true; };
-    cover.src = mediaUrl(track.id, "thumb");
-  }
+  renderCover(track);
   $("btn-play").innerHTML = icon(audio.paused ? "play" : "pause");
   $("btn-play").setAttribute("aria-label", audio.paused ? "Tocar" : "Pausar");
   $("btn-shuffle").classList.toggle("on", state.shuffle);
@@ -194,16 +204,26 @@ function renderPlayer() {
 
 // ---- listas ----
 
+function noteThumb(withIcon) {
+  const box = el("div", "thumb note");
+  if (withIcon) box.innerHTML = icon("note");
+  return box;
+}
+
+function coverThumb(track) {
+  const img = el("img", "thumb");
+  img.alt = "";
+  img.loading = "lazy";
+  img.addEventListener("error", () => img.replaceWith(noteThumb(true)));
+  img.src = mediaUrl(track.id, "thumb");
+  return img;
+}
+
 function trackRow(track, { actions }) {
   const row = el("li", `row${track.id === state.current ? " playing" : ""}`);
   const main = el("button", "row-main");
-  const thumb = track.status === "ready" ? el("img", "thumb") : el("div", "thumb");
-  if (track.status === "ready") {
-    thumb.alt = "";
-    thumb.loading = "lazy";
-    thumb.addEventListener("error", () => thumb.replaceWith(el("div", "thumb")));
-    thumb.src = mediaUrl(track.id, "thumb");
-  }
+  const ready = track.status === "ready";
+  const thumb = ready && state.showCover ? coverThumb(track) : noteThumb(ready);
   const text = el("div", "row-text");
   text.append(el("span", "row-title", track.title));
   if (track.status === "downloading") {
@@ -401,6 +421,14 @@ function init() {
     } catch { setAddMessage("Não consegui ler a área de transferência. Cole no campo.", true); }
   });
 
+  $("cover-note").innerHTML = icon("note");
+  $("set-cover").checked = state.showCover;
+  $("set-cover").addEventListener("change", () => {
+    state.showCover = $("set-cover").checked;
+    store.set("showCover", state.showCover ? "1" : "0");
+    if (byId(state.current)) updateMediaSession(byId(state.current));
+    renderAll();
+  });
   $("app-version").textContent = `Versão ${APP_VERSION}`;
   $("open-settings").addEventListener("click", () => openSettings(false));
   $("settings-cancel").addEventListener("click", () => $("settings").close());
@@ -425,6 +453,12 @@ function init() {
 
   // O Safari do iPhone ignora o viewport pra zoom de pinça; esse evento (só dele) bloqueia.
   document.addEventListener("gesturestart", (e) => e.preventDefault());
+  // Sem isso o iOS "estica" a tela nas abas que cabem inteiras; só deixa arrastar onde há o que rolar.
+  document.addEventListener("touchmove", (e) => {
+    if (e.target.closest('input[type="range"], dialog')) return;
+    const scroller = e.target.closest("main");
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) e.preventDefault();
+  }, { passive: false });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadTracks(); });
 
   renderAll();
