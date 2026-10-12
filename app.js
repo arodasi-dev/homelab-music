@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.4";
+const APP_VERSION = "2026-10-12.5";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -374,6 +374,7 @@ function show(view) {
   state.view = view;
   for (const name of Object.keys(TABS)) $(`view-${name}`).hidden = name !== view;
   for (const tab of document.querySelectorAll(".tabs button")) tab.classList.toggle("on", tab.dataset.view === view);
+  $("tab-indicator").style.transform = `translateX(${Object.keys(TABS).indexOf(view) * 100}%)`;
 }
 
 function openSettings(firstTime) {
