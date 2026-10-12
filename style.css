@@ -30,8 +30,11 @@
 
 /* `manipulation` mantém rolar e tocar, mas tira o zoom de duplo toque do iOS. */
 * { box-sizing: border-box; touch-action: manipulation; }
-html, body { height: 100%; }
+/* A página não rola nem "estica" no iOS: o body fica preso na tela e só o <main> rola. */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
+  position: fixed;
+  inset: 0;
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -40,7 +43,7 @@ body {
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
 }
-main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 h1 { font-size: 22px; font-weight: 600; margin: 0; }
