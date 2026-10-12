@@ -28,7 +28,8 @@
   }
 }
 
-* { box-sizing: border-box; }
+/* `manipulation` mantém rolar e tocar, mas tira o zoom de duplo toque do iOS. */
+* { box-sizing: border-box; touch-action: manipulation; }
 html, body { height: 100%; }
 body {
   margin: 0;

@@ -1,4 +1,5 @@
 const POLL_MS = 3000;
+const APP_VERSION = "2026-10-12.2";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -128,6 +129,8 @@ function updateMediaSession(track) {
     artist: track.channel,
     artwork: [{ src: mediaUrl(track.id, "thumb"), sizes: "480x360", type: "image/jpeg" }],
   });
+  // O iOS monta os botões da tela de bloqueio quando a sessão de mídia fica ativa, então registra de novo aqui.
+  setupMediaSession();
 }
 
 function updatePosition() {
@@ -398,6 +401,7 @@ function init() {
     } catch { setAddMessage("Não consegui ler a área de transferência. Cole no campo.", true); }
   });
 
+  $("app-version").textContent = `Versão ${APP_VERSION}`;
   $("open-settings").addEventListener("click", () => openSettings(false));
   $("settings-cancel").addEventListener("click", () => $("settings").close());
   $("settings-form").addEventListener("submit", (e) => {
@@ -419,6 +423,8 @@ function init() {
   });
   $("settings").addEventListener("cancel", (e) => { if (!baseUrl || !token) e.preventDefault(); });
 
+  // O Safari do iPhone ignora o viewport pra zoom de pinça; esse evento (só dele) bloqueia.
+  document.addEventListener("gesturestart", (e) => e.preventDefault());
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadTracks(); });
 
   renderAll();
