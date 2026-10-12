@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.5";
+const APP_VERSION = "2026-10-12.6";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -79,7 +79,19 @@ async function loadTracks() {
     showConnection(`Sem conexão com o servidor. ${err.message}`);
   }
   renderAll();
+  loadAccount();
   if (state.tracks.some((t) => t.status === "downloading")) pollTimer = setTimeout(loadTracks, POLL_MS);
+}
+
+// Servidor antigo (sem contas) não tem /me: aí a linha da conta simplesmente não aparece.
+async function loadAccount() {
+  try {
+    const me = await api("/me");
+    $("account").textContent = `Conta: ${me.name} · ${me.count} de ${me.limit} músicas`;
+    $("account").hidden = false;
+  } catch {
+    $("account").hidden = true;
+  }
 }
 
 // ---- player ----
