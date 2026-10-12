@@ -1,29 +1,29 @@
 :root {
-  --bg: #ffffff;
-  --surface: #f5f5f3;
-  --text: #1a1a19;
-  --muted: #6b6b66;
+  --bg: #fff8f5;
+  --surface: #ffefe9;
+  --text: #2a1f1c;
+  --muted: #7d6d67;
   --border: rgba(0, 0, 0, 0.1);
-  --accent: #0f6e56;
-  --accent-bg: #e1f5ee;
-  --accent-text: #085041;
-  --thumb: #9fe1cb;
+  --accent: #e2552f;
+  --accent-bg: #ffe6dd;
+  --accent-text: #9a3414;
+  --thumb: #ffc9b6;
   --on-accent: #ffffff;
   --danger: #a32d2d;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121413;
-    --surface: #1b1e1c;
-    --text: #f1f1ee;
-    --muted: #9a9a94;
+    --bg: #1a1412;
+    --surface: #241b18;
+    --text: #f6eeea;
+    --muted: #a8978f;
     --border: rgba(255, 255, 255, 0.12);
-    --accent: #5dcaa5;
-    --accent-bg: #0b2e26;
-    --accent-text: #9fe1cb;
-    --thumb: #085041;
-    --on-accent: #04342c;
+    --accent: #ff7f5c;
+    --accent-bg: #3a1b10;
+    --accent-text: #ffc9b6;
+    --thumb: #5a2a19;
+    --on-accent: #2b0e05;
     --danger: #f09595;
   }
 }
@@ -75,6 +75,7 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .row { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-bottom: 0.5px solid var(--border); }
 .row.playing { background: var(--accent-bg); }
 .row.playing .row-title { color: var(--accent-text); }
+.row.playing .thumb.note { background: var(--accent); color: var(--on-accent); }
 .row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; padding: 2px 0; }
 .thumb { width: 44px; height: 44px; border-radius: 8px; background: var(--thumb); flex: none; object-fit: cover; }
 .thumb.wide { width: 80px; height: 45px; }
@@ -119,8 +120,10 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 .queue { margin-top: 8px; border-top: 0.5px solid var(--border); }
 
 .tabs { display: flex; border-top: 0.5px solid var(--border); background: var(--bg); padding-bottom: env(safe-area-inset-bottom); }
-.tabs button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; color: var(--muted); }
+.tabs button { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 9px 0 6px; font-size: 11px; color: var(--muted); }
 .tabs button.on { color: var(--accent); }
+/* Barrinha no topo da aba selecionada. */
+.tabs button.on::before { content: ""; position: absolute; top: -0.5px; left: 50%; width: 32px; height: 3px; margin-left: -16px; border-radius: 0 0 3px 3px; background: var(--accent); }
 .tabs svg { width: 22px; height: 22px; }
 
 dialog { border: 0.5px solid var(--border); border-radius: 14px; background: var(--bg); color: var(--text); width: min(92vw, 420px); padding: 20px; }

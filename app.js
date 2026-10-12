@@ -1,10 +1,10 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.3";
+const APP_VERSION = "2026-10-12.4";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
 const ICONS = {
-  play: '<path d="M7 4v16l13-8z" fill="currentColor" stroke="none"/>',
+  play: '<path d="M6 4v16l13-8z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/>',
   prev: '<path d="M19 5v14L8 12z" fill="currentColor"/><path d="M5 5v14"/>',
   next: '<path d="M5 5v14l11-7z" fill="currentColor"/><path d="M19 5v14"/>',
@@ -59,7 +59,7 @@ async function api(path, options = {}) {
   return res.status === 204 ? null : res.json();
 }
 
-const mediaUrl = (id, kind) => `${baseUrl}/tracks/${id}/${kind}?t=${encodeURIComponent(token)}`;
+const mediaUrl = (id, kind, extra = "") => `${baseUrl}/tracks/${id}/${kind}?t=${encodeURIComponent(token)}${extra}`;
 const byId = (id) => state.tracks.find((t) => t.id === id);
 const readyTracks = () => state.tracks.filter((t) => t.status === "ready");
 
@@ -86,9 +86,10 @@ async function loadTracks() {
 
 function play(id) {
   const track = byId(id);
-  if (!track || track.status !== "ready") return;
+  if (!track || !["ready", "downloading"].includes(track.status)) return;
   state.current = id;
-  audio.src = mediaUrl(id, "audio");
+  // Baixando: o servidor repassa o áudio direto do YouTube (`live=1`) até o arquivo ficar pronto.
+  audio.src = mediaUrl(id, "audio", track.status === "downloading" ? "&live=1" : "");
   audio.play().catch(() => {});
   updateMediaSession(track);
   renderAll();
@@ -172,8 +173,9 @@ function renderSeek() {
 
 function renderCover(track) {
   const img = $("cover-img");
-  if (state.showCover && img.dataset.id !== track.id) {
-    img.dataset.id = track.id;
+  const key = `${track.id}:${track.status}`; // a capa só existe depois do download, então tenta de novo ao ficar pronta
+  if (state.showCover && img.dataset.id !== key) {
+    img.dataset.id = key;
     img.dataset.failed = "";
     img.onerror = () => { img.dataset.failed = "1"; renderCover(track); };
     img.src = mediaUrl(track.id, "thumb");
@@ -223,12 +225,14 @@ function trackRow(track, { actions }) {
   const row = el("li", `row${track.id === state.current ? " playing" : ""}`);
   const main = el("button", "row-main");
   const ready = track.status === "ready";
-  const thumb = ready && state.showCover ? coverThumb(track) : noteThumb(ready);
+  const downloading = track.status === "downloading";
+  const thumb = ready && state.showCover ? coverThumb(track) : noteThumb(ready || downloading);
   const text = el("div", "row-text");
   text.append(el("span", "row-title", track.title));
-  if (track.status === "downloading") {
-    text.append(el("span", "row-sub", "Baixando…"));
+  if (downloading) {
+    text.append(el("span", "row-sub", "Baixando… toque pra ouvir"));
     text.append(Object.assign(el("div", "bar"), { innerHTML: "<i></i>" }));
+    main.addEventListener("click", () => { play(track.id); if (actions) show("player"); });
   } else if (track.status === "error") {
     text.append(el("span", "row-sub error", `Falhou: ${track.error || "erro desconhecido"}`));
   } else {
@@ -410,6 +414,9 @@ function init() {
   audio.addEventListener("loadedmetadata", () => { renderSeek(); updatePosition(); });
   audio.addEventListener("seeked", updatePosition);
   audio.addEventListener("ended", () => step(1, true));
+  audio.addEventListener("error", () => {
+    if (audio.getAttribute("src")) $("now-channel").textContent = "Não consegui tocar agora. Tente de novo em instantes.";
+  });
   setupMediaSession();
 
   $("add-form").addEventListener("submit", (e) => { e.preventDefault(); submitAdd(); });
