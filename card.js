@@ -17,7 +17,7 @@ const CARD = {
   titleMaxLines: 3,
   bars: 9,
   safeBottom: 270, // o Instagram cobre o pé do story com a barra de resposta
-  signature: "music by isadora",
+  signature: "app music by isadora",
 };
 
 function loadCover(url) {
