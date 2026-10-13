@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.7";
+const APP_VERSION = "2026-10-12.8";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -318,17 +318,26 @@ function renderAll() {
 
 let shareFile = null;
 let shareUrl = "";
+let shareRun = 0; // se a pessoa liga/desliga a capa rápido, só a montagem mais recente vale
 
-async function openShare() {
+function openShare() {
+  if (!byId(state.current)) return;
+  $("share-cover").checked = store.get("shareCover") === "1"; // sem capa por padrão
+  $("share").showModal();
+  buildShare();
+}
+
+async function buildShare() {
   const track = byId(state.current);
-  if (!track) return;
+  const withCover = $("share-cover").checked;
+  const run = ++shareRun;
   shareFile = null;
   $("share-img").hidden = true;
   $("share-status").textContent = "Montando a imagem…";
-  $("share").showModal();
   // O `&cors=1` separa essa imagem da já guardada pelo <img> comum, que veio sem cabeçalho de CORS.
-  const canvas = await buildShareCard(track, mediaUrl(track.id, "thumb", "&cors=1"));
+  const canvas = await buildShareCard(track, withCover ? mediaUrl(track.id, "thumb", "&cors=1") : null);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (run !== shareRun) return;
   shareFile = new File([blob], `ouvindo-${track.id}.png`, { type: "image/png" });
   if (shareUrl) URL.revokeObjectURL(shareUrl);
   shareUrl = URL.createObjectURL(blob);
@@ -450,6 +459,10 @@ function init() {
 
   $("btn-share").addEventListener("click", openShare);
   $("share-go").addEventListener("click", sendShare);
+  $("share-cover").addEventListener("change", () => {
+    store.set("shareCover", $("share-cover").checked ? "1" : "0");
+    buildShare();
+  });
   $("share-close").addEventListener("click", () => $("share").close());
   $("btn-play").addEventListener("click", togglePlay);
   $("btn-prev").addEventListener("click", previous);

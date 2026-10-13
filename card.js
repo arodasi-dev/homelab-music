@@ -12,6 +12,9 @@ const CARD = {
   coverSize: 780,
   coverTop: 340,
   textWidth: 880,
+  titleMax: 68, // o título nunca é cortado: encolhe a letra até caber em 3 linhas e, se não couber, quebra em mais
+  titleMin: 40,
+  titleMaxLines: 3,
   bars: 9,
   safeBottom: 270, // o Instagram cobre o pé do story com a barra de resposta
   signature: "music by isadora",
@@ -77,6 +80,16 @@ function wrapLines(ctx, text, maxWidth, maxLines) {
   while (last && ctx.measureText(`${last}…`).width > maxWidth) last = last.slice(0, -1);
   kept[maxLines - 1] = `${last}…`;
   return kept;
+}
+
+function fitTitle(ctx, title) {
+  let size = CARD.titleMax;
+  for (;;) {
+    ctx.font = `700 ${size}px ${CARD.font}`;
+    const lines = wrapLines(ctx, title, CARD.textWidth, Infinity);
+    if (lines.length <= CARD.titleMaxLines || size <= CARD.titleMin) return { lines, size };
+    size -= 4;
+  }
 }
 
 function starPath(cx, cy, outer) {
@@ -152,34 +165,29 @@ function renderCard(track, cover) {
 
   ctx.textAlign = "center";
   ctx.fillStyle = CARD.text;
-  ctx.font = `700 68px ${CARD.font}`;
-  const titleLines = wrapLines(ctx, track.title, CARD.textWidth, 2);
+  const { lines, size } = fitTitle(ctx, track.title);
   let y = baseline + 95;
-  for (const line of titleLines) {
+  for (const line of lines) {
     ctx.fillText(line, cx, y);
-    y += 82;
+    y += size * 1.2;
   }
 
-  ctx.fillStyle = CARD.muted;
-  ctx.font = `400 44px ${CARD.font}`;
-  const [channel] = wrapLines(ctx, track.channel || "", CARD.textWidth, 1);
-  ctx.fillText(channel, cx, y + 4);
-
-  // Assinatura: estrela desenhada + texto, centralizados juntos.
+  // Assinatura: texto + estrela desenhada, centralizados juntos.
   ctx.font = `500 40px ${CARD.font}`;
   const star = 22;
   const gapStar = 20;
   const textWidth = ctx.measureText(CARD.signature).width;
-  const startX = cx - (star * 2 + gapStar + textWidth) / 2;
+  const startX = cx - (textWidth + gapStar + star * 2) / 2;
   const signatureY = height - CARD.safeBottom;
-  ctx.fillStyle = CARD.accent;
-  ctx.fill(starPath(startX + star, signatureY - 14, star));
   ctx.fillStyle = CARD.muted;
   ctx.textAlign = "left";
-  ctx.fillText(CARD.signature, startX + star * 2 + gapStar, signatureY);
+  ctx.fillText(CARD.signature, startX, signatureY);
+  ctx.fillStyle = CARD.accent;
+  ctx.fill(starPath(startX + textWidth + gapStar + star, signatureY - 14, star));
   return canvas;
 }
 
+// `coverUrl` vazio = cartão sem capa (aparece o ícone de música no lugar).
 async function buildShareCard(track, coverUrl) {
-  return renderCard(track, await loadCover(coverUrl));
+  return renderCard(track, coverUrl ? await loadCover(coverUrl) : null);
 }
