@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.10";
+const APP_VERSION = "2026-10-13.1";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -28,7 +28,12 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* modo privado: pede de novo */ } },
 };
 
-const state = { showCover: store.get("showCover") !== "0", tracks: [], results: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
+// A última lista fica guardada: ao abrir o app ela aparece na hora, e a do servidor chega por cima.
+function cachedTracks() {
+  try { return JSON.parse(store.get("tracksCache") || "[]"); } catch { return []; }
+}
+
+const state = { showCover: store.get("showCover") !== "0", tracks: cachedTracks(), loaded: false, adding: new Set(), loadingAudio: false, results: [], current: null, shuffle: false, repeat: "off", queueOpen: false, seeking: false, view: "player" };
 let baseUrl = store.get("agentUrl");
 let token = store.get("token");
 let pollTimer = null;
@@ -75,10 +80,12 @@ async function loadTracks() {
   if (!baseUrl || !token) return;
   try {
     state.tracks = await api("/tracks");
+    store.set("tracksCache", JSON.stringify(state.tracks));
     showConnection("");
   } catch (err) {
     showConnection(`Sem conexão com o servidor. ${err.message}`);
   }
+  state.loaded = true;
   renderAll();
   loadAccount();
   if (state.tracks.some((t) => t.status === "downloading")) pollTimer = setTimeout(loadTracks, POLL_MS);
@@ -97,16 +104,52 @@ async function loadAccount() {
 
 // ---- player ----
 
+let wantPlay = false; // a pessoa (ou a troca automática) quer som: se o navegador recusar ou falhar, tenta de novo
+let retries = 0;
+const MAX_RETRIES = 2;
+
+function startAudio() {
+  audio.play().catch(() => {}); // se recusar agora, o `canplay` tenta de novo
+}
+
+function setLoadingAudio(loading) {
+  if (state.loadingAudio === loading) return;
+  state.loadingAudio = loading;
+  renderPlayer();
+}
+
 function play(id) {
   const track = byId(id);
   if (!track || !["ready", "downloading"].includes(track.status)) return;
   state.current = id;
+  wantPlay = true;
+  retries = 0;
   // Baixando: o servidor repassa o áudio direto do YouTube (`live=1`) até o arquivo ficar pronto.
   audio.src = mediaUrl(id, "audio", track.status === "downloading" ? "&live=1" : "");
-  audio.play().catch(() => {});
+  setLoadingAudio(true);
+  startAudio();
   updateMediaSession(track);
   renderAll();
 }
+
+// Faixa que não carregou (rede instável, servidor ocupado): tenta de novo e, se não der, pula pra próxima.
+function recoverAudio() {
+  if (!wantPlay || !audio.getAttribute("src")) return;
+  if (retries < MAX_RETRIES) {
+    retries++;
+    const at = audio.currentTime;
+    const track = byId(state.current);
+    audio.src = mediaUrl(state.current, "audio", `${track?.status === "downloading" ? "&live=1" : ""}&r=${retries}`);
+    if (at) audio.currentTime = at;
+    startAudio();
+    return;
+  }
+  setLoadingAudio(false);
+  $("now-channel").textContent = "Não consegui tocar agora. Tente de novo em instantes.";
+  // Pula pra próxima, mas sem rodar a lista toda em círculo se o servidor estiver fora do ar.
+  if (skips++ < Math.min(readyTracks().length - 1, 3)) step(1, true);
+}
+let skips = 0;
 
 function step(direction, auto) {
   const ready = readyTracks();
@@ -121,7 +164,7 @@ function step(direction, auto) {
   if (state.shuffle && ready.length > 1) {
     do { next = Math.floor(Math.random() * ready.length); } while (next === index);
   } else if (next < 0 || next >= ready.length) {
-    if (auto && state.repeat !== "all") { audio.pause(); return; }
+    if (auto && state.repeat !== "all") { wantPlay = false; audio.pause(); return; }
     next = (next + ready.length) % ready.length;
   }
   play(ready[next].id);
@@ -133,8 +176,8 @@ function previous() {
 }
 
 function togglePlay() {
-  if (audio.src && audio.paused) audio.play().catch(() => {});
-  else audio.pause();
+  if (audio.src && audio.paused) { wantPlay = true; startAudio(); }
+  else { wantPlay = false; audio.pause(); }
 }
 
 function updateMediaSession(track) {
@@ -160,8 +203,8 @@ function updatePosition() {
 function setupMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const handlers = {
-    play: () => audio.play(),
-    pause: () => audio.pause(),
+    play: () => { wantPlay = true; startAudio(); },
+    pause: () => { wantPlay = false; audio.pause(); },
     previoustrack: previous,
     nexttrack: () => step(1, false),
     seekto: (d) => { audio.currentTime = d.seekTime; },
@@ -207,8 +250,9 @@ function renderPlayer() {
   $("now-title").textContent = track.title;
   $("now-channel").textContent = track.channel;
   renderCover(track);
-  $("btn-play").innerHTML = icon(audio.paused ? "play" : "pause");
-  $("btn-play").setAttribute("aria-label", audio.paused ? "Tocar" : "Pausar");
+  const loading = state.loadingAudio && wantPlay;
+  $("btn-play").innerHTML = loading ? '<span class="spinner"></span>' : icon(audio.paused ? "play" : "pause");
+  $("btn-play").setAttribute("aria-label", loading ? "Carregando" : audio.paused ? "Tocar" : "Pausar");
   $("btn-shuffle").classList.toggle("on", state.shuffle);
   $("btn-repeat").classList.toggle("on", state.repeat !== "off");
   $("btn-repeat").dataset.mode = state.repeat;
@@ -277,7 +321,9 @@ function renderRows(list, tracks, options) {
 
 function renderLibrary() {
   renderRows($("library"), state.tracks, { actions: true });
-  $("library-empty").hidden = state.tracks.length > 0 || !$("conn").hidden;
+  const waiting = !state.loaded && !!baseUrl && !!token; // ainda esperando a primeira resposta do servidor
+  $("library-loading").hidden = !waiting;
+  $("library-empty").hidden = waiting || state.tracks.length > 0 || !$("conn").hidden;
 }
 
 function renderDownloading() {
@@ -300,7 +346,9 @@ function renderResults() {
     text.append(el("span", "row-title", r.title), el("span", "row-sub", sub));
     main.append(thumb, text);
     row.append(main);
-    row.append(inLibrary(r.id)
+    row.append(state.adding.has(r.id)
+      ? Object.assign(el("span", "icon-btn"), { innerHTML: '<span class="spinner"></span>' })
+      : inLibrary(r.id)
       ? Object.assign(el("span", "icon-btn on"), { innerHTML: icon("check") })
       : rowButton("add", "Adicionar à biblioteca", () => addUrl(`https://www.youtube.com/watch?v=${r.id}`)));
     return row;
@@ -373,6 +421,7 @@ async function sendShare() {
 async function removeTrack(track) {
   if (!confirm(`Apagar "${track.title}"?`)) return;
   if (track.id === state.current) {
+    wantPlay = false;
     audio.pause();
     audio.removeAttribute("src");
     audio.load();
@@ -393,8 +442,16 @@ function setAddMessage(text, isError) {
   msg.className = isError ? "notice error" : "notice";
 }
 
+const videoId = (url) => url.match(/[?&]v=([\w-]{11})/)?.[1] || url.match(/youtu\.be\/([\w-]{11})/)?.[1] || url;
+
+// O servidor leva alguns segundos pra abrir o vídeo antes de responder; até lá mostra "Adicionando…" pra não parecer travado.
 async function addUrl(url) {
-  setAddMessage("");
+  const key = videoId(url);
+  if (state.adding.has(key)) return false;
+  state.adding.add(key);
+  setAddMessage("Adicionando… isso pode levar alguns segundos.", false);
+  $("add-submit").disabled = true;
+  renderResults();
   try {
     const track = await api("/tracks", { method: "POST", body: JSON.stringify({ url }) });
     setAddMessage(track.status === "ready" ? "Essa música já está na biblioteca." : "Baixando em segundo plano. Ela aparece na biblioteca quando terminar.", false);
@@ -403,6 +460,10 @@ async function addUrl(url) {
   } catch (err) {
     setAddMessage(err.message, true);
     return false;
+  } finally {
+    state.adding.delete(key);
+    $("add-submit").disabled = state.adding.size > 0;
+    renderResults();
   }
 }
 
@@ -485,14 +546,18 @@ function init() {
   seek.addEventListener("change", () => { audio.currentTime = Number(seek.value); state.seeking = false; });
 
   audio.addEventListener("timeupdate", renderSeek);
-  audio.addEventListener("play", () => { renderPlayer(); updatePosition(); });
-  audio.addEventListener("pause", () => { renderPlayer(); updatePosition(); });
+  const setSession = () => { if ("mediaSession" in navigator) navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing"; };
+  audio.addEventListener("play", () => { setSession(); renderPlayer(); updatePosition(); });
+  audio.addEventListener("pause", () => { setSession(); renderPlayer(); updatePosition(); });
+  // Só marca como "carregando" quando o áudio realmente trava esperando dados.
+  audio.addEventListener("waiting", () => setLoadingAudio(true));
+  audio.addEventListener("loadstart", () => setLoadingAudio(true));
+  audio.addEventListener("canplay", () => { setLoadingAudio(false); if (wantPlay && audio.paused) startAudio(); });
+  audio.addEventListener("playing", () => { skips = 0; retries = 0; setLoadingAudio(false); });
   audio.addEventListener("loadedmetadata", () => { renderSeek(); updatePosition(); });
   audio.addEventListener("seeked", updatePosition);
   audio.addEventListener("ended", () => step(1, true));
-  audio.addEventListener("error", () => {
-    if (audio.getAttribute("src")) $("now-channel").textContent = "Não consegui tocar agora. Tente de novo em instantes.";
-  });
+  audio.addEventListener("error", recoverAudio);
   setupMediaSession();
 
   $("add-form").addEventListener("submit", (e) => { e.preventDefault(); submitAdd(); });

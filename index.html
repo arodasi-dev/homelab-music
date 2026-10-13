@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <audio id="audio" preload="metadata"></audio>
+  <audio id="audio" preload="auto"></audio>
 
   <main>
     <section id="view-player" class="view">
@@ -60,6 +60,7 @@
         <button id="open-settings" class="icon-btn" aria-label="Configurações"></button>
       </header>
       <p id="conn" class="notice" hidden></p>
+      <p id="library-loading" class="loading" hidden><span class="spinner"></span> Carregando músicas…</p>
       <ul id="library" class="list"></ul>
       <div id="library-empty" class="empty" hidden>
         <h2>Comece sua biblioteca</h2>
