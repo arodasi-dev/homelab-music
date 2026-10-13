@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.9";
+const APP_VERSION = "2026-10-12.10";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -323,26 +323,32 @@ let shareRun = 0; // se a pessoa liga/desliga a capa rápido, só a montagem mai
 function openShare() {
   if (!byId(state.current)) return;
   $("share-cover").checked = store.get("shareCover") === "1"; // sem capa por padrão
+  shareFile = null;
+  $("share-img").removeAttribute("src");
+  $("share-status").textContent = "Montando a imagem…";
   $("share").showModal();
+  $("share").focus(); // sem isso o iOS foca o checkbox e desenha um quadrado em volta dele
   buildShare();
 }
 
+// Ao trocar a capa, a imagem antiga fica na tela até a nova estar pronta e decodificada: sem piscar.
 async function buildShare() {
   const track = byId(state.current);
   const withCover = $("share-cover").checked;
   const run = ++shareRun;
-  shareFile = null;
-  $("share-img").hidden = true;
-  $("share-status").textContent = "Montando a imagem…";
   // O `&cors=1` separa essa imagem da já guardada pelo <img> comum, que veio sem cabeçalho de CORS.
   const canvas = await buildShareCard(track, withCover ? mediaUrl(track.id, "thumb", "&cors=1") : null);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (run !== shareRun) return;
+  const url = URL.createObjectURL(blob);
+  const next = new Image();
+  next.src = url;
+  // Decodifica antes de trocar (pra não piscar); o limite evita travar se o navegador demorar a responder.
+  await Promise.race([next.decode().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1500))]);
+  if (run !== shareRun) { URL.revokeObjectURL(url); return; }
   shareFile = new File([blob], `ouvindo-${track.id}.png`, { type: "image/png" });
+  $("share-img").src = url;
   if (shareUrl) URL.revokeObjectURL(shareUrl);
-  shareUrl = URL.createObjectURL(blob);
-  $("share-img").src = shareUrl;
-  $("share-img").hidden = false;
+  shareUrl = url;
   $("share-status").textContent = "Escolha o Instagram (ou Salvar imagem) na próxima tela.";
 }
 
