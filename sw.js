@@ -1,6 +1,6 @@
 // Só guarda a "casca" do app pra abrir rápido; o áudio e a biblioteca vêm sempre do homelab (outra origem).
-const CACHE = "music-shell-v1";
-const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icons/icon-192.png"];
+const CACHE = "music-shell-v2";
+const SHELL = ["./", "index.html", "style.css", "app.js", "card.js", "manifest.webmanifest", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))));
 self.addEventListener("activate", (e) => e.waitUntil(

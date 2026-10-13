@@ -29,7 +29,10 @@
       <div id="player-body" hidden>
         <div class="player-top">
           <span class="muted">Tocando agora</span>
-          <button id="toggle-queue" class="icon-btn" aria-label="Fila"></button>
+          <div class="top-actions">
+            <button id="btn-share" class="icon-btn" aria-label="Compartilhar nos stories"></button>
+            <button id="toggle-queue" class="icon-btn" aria-label="Fila"></button>
+          </div>
         </div>
         <div id="cover" class="cover"><img id="cover-img" alt=""><span id="cover-note" hidden></span></div>
         <div class="now">
@@ -110,6 +113,17 @@
     </form>
   </dialog>
 
+  <dialog id="share">
+    <h2>Compartilhar nos stories</h2>
+    <p id="share-status" class="muted"></p>
+    <img id="share-img" alt="Prévia do cartão da música" hidden>
+    <div class="actions">
+      <button type="button" id="share-close" class="ghost">Fechar</button>
+      <button type="button" id="share-go" class="btn primary">Compartilhar</button>
+    </div>
+  </dialog>
+
+  <script src="card.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

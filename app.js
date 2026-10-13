@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.6";
+const APP_VERSION = "2026-10-12.7";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
@@ -18,6 +18,7 @@ const ICONS = {
   retry: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
   settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   note: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  share: '<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -202,6 +203,7 @@ function renderPlayer() {
   $("player-empty").hidden = !!track;
   $("player-body").hidden = !track;
   if (!track) return;
+  $("btn-share").hidden = track.status !== "ready"; // o cartão usa a capa, que só existe depois do download
   $("now-title").textContent = track.title;
   $("now-channel").textContent = track.channel;
   renderCover(track);
@@ -312,6 +314,45 @@ function renderAll() {
   renderResults();
 }
 
+// ---- compartilhar nos stories ----
+
+let shareFile = null;
+let shareUrl = "";
+
+async function openShare() {
+  const track = byId(state.current);
+  if (!track) return;
+  shareFile = null;
+  $("share-img").hidden = true;
+  $("share-status").textContent = "Montando a imagem…";
+  $("share").showModal();
+  // O `&cors=1` separa essa imagem da já guardada pelo <img> comum, que veio sem cabeçalho de CORS.
+  const canvas = await buildShareCard(track, mediaUrl(track.id, "thumb", "&cors=1"));
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  shareFile = new File([blob], `ouvindo-${track.id}.png`, { type: "image/png" });
+  if (shareUrl) URL.revokeObjectURL(shareUrl);
+  shareUrl = URL.createObjectURL(blob);
+  $("share-img").src = shareUrl;
+  $("share-img").hidden = false;
+  $("share-status").textContent = "Escolha o Instagram (ou Salvar imagem) na próxima tela.";
+}
+
+function saveShareImage() {
+  const link = Object.assign(document.createElement("a"), { href: shareUrl, download: shareFile.name });
+  link.click();
+}
+
+// O share() precisa de um toque do usuário; por isso a imagem é montada antes e este botão só envia.
+async function sendShare() {
+  if (!shareFile) return;
+  if (!navigator.canShare?.({ files: [shareFile] })) { saveShareImage(); return; }
+  try {
+    await navigator.share({ files: [shareFile] });
+  } catch (err) {
+    if (err.name !== "AbortError") saveShareImage();
+  }
+}
+
 // ---- ações ----
 
 async function removeTrack(track) {
@@ -404,9 +445,12 @@ function init() {
     tab.addEventListener("click", () => show(tab.dataset.view));
   }
   for (const link of document.querySelectorAll("[data-go]")) link.addEventListener("click", () => show(link.dataset.go));
-  const buttons = { "toggle-queue": "queue", "btn-shuffle": "shuffle", "btn-prev": "prev", "btn-next": "next", "btn-repeat": "repeat", "open-settings": "settings" };
+  const buttons = { "btn-share": "share", "toggle-queue": "queue", "btn-shuffle": "shuffle", "btn-prev": "prev", "btn-next": "next", "btn-repeat": "repeat", "open-settings": "settings" };
   for (const [id, name] of Object.entries(buttons)) $(id).innerHTML = icon(name);
 
+  $("btn-share").addEventListener("click", openShare);
+  $("share-go").addEventListener("click", sendShare);
+  $("share-close").addEventListener("click", () => $("share").close());
   $("btn-play").addEventListener("click", togglePlay);
   $("btn-prev").addEventListener("click", previous);
   $("btn-next").addEventListener("click", () => step(1, false));

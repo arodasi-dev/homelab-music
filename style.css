@@ -134,5 +134,7 @@ dialog label { display: block; margin-top: 12px; font-size: 14px; color: var(--m
 dialog label.check { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 16px; }
 dialog label.check input { width: auto; margin: 0; }
 dialog input[type="text"], dialog input[type="url"], dialog input[type="password"] { display: block; width: 100%; margin-top: 4px; padding: 11px; border: 0.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }
+.top-actions { display: flex; align-items: center; }
+#share-img { display: block; width: auto; max-width: 100%; max-height: 58vh; margin: 12px auto 0; border-radius: 12px; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 dialog .notice { margin: 8px 0 0; }
