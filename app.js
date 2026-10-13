@@ -1,5 +1,5 @@
 const POLL_MS = 3000;
-const APP_VERSION = "2026-10-12.8";
+const APP_VERSION = "2026-10-12.9";
 const RESTART_AFTER_S = 3;
 const LINK = /^https?:\/\//i;
 
